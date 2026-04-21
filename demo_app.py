@@ -357,7 +357,6 @@ def dashboard():
       <div class="nav-label">Navigation</div>
       <div class="nav-item active">📊 Dashboard</div>
       <a class="nav-item" href="/docs">📖 API Docs</a>
-      <a class="nav-item" href="/health" target="_blank">❤️ Health</a>
       <a class="nav-item" href="{BASE}" target="_blank">↗ Data Source</a>
     </div>
     <div class="score-ring">
