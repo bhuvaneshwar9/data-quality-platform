@@ -56,11 +56,11 @@ def generate_transactions(n: int = 600, seed: int = 42) -> pd.DataFrame:
 # ── Run all checks ─────────────────────────────────────────────────────────
 def run_all_checks(df: pd.DataFrame) -> list[dict]:
     checks = [
-        NullCheck(columns=["user_id", "amount", "category", "country"], threshold=0.05),
-        DuplicateCheck(subset=["transaction_id"], threshold=0.01),
-        RangeCheck(column="amount", min_val=0.01, max_val=10000, threshold=0.03),
-        FreshnessCheck(timestamp_column="created_at", max_age_hours=48),
-        AnomalyCheck(column="amount", z_threshold=3.0, threshold=0.03),
+        NullCheck(columns=["user_id", "amount", "category", "country"], threshold_pct=2.0),
+        DuplicateCheck(key_columns=["transaction_id"], threshold_pct=1.0),
+        RangeCheck(column="amount", min_val=0.01, max_val=10000),
+        FreshnessCheck(timestamp_col="created_at", max_age_hours=48),
+        AnomalyCheck(column="amount", z_threshold=3.0, max_pct=3.0),
     ]
     results = []
     for check in checks:
