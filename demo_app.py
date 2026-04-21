@@ -382,7 +382,7 @@ def dashboard():
   </div>
 
   <div class="btns">
-    <a class="btn solid" href="/run">↻ Re-run Now</a>
+    <a class="btn solid" href="/" onclick="location.reload();return false;">↻ Re-run Now</a>
     <a class="btn ghost" href="/docs">📖 API Docs</a>
     <a class="btn green" href="{BASE}" target="_blank">🌐 Live Data Source</a>
   </div>
