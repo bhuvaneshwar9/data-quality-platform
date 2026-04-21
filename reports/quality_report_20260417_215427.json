@@ -1,0 +1,10 @@
+{
+  "run_timestamp": "2026-04-17T21:54:27.273109+00:00",
+  "total_rows": 1000,
+  "checks_run": 5,
+  "passed": 3,
+  "failed": 2,
+  "results": [
+    {
+      "check_name": "null_check",
+      "passed": 

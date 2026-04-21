@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: data-quality-platform
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements-deploy.txt
+    startCommand: uvicorn demo_app:app --host 0.0.0.0 --port $PORT

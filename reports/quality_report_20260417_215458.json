@@ -1,0 +1,59 @@
+{
+  "run_timestamp": "2026-04-17T21:54:58.056050+00:00",
+  "total_rows": 1000,
+  "checks_run": 5,
+  "passed": 3,
+  "failed": 2,
+  "results": [
+    {
+      "check_name": "null_check",
+      "passed": true,
+      "severity": "CRITICAL",
+      "metric": 0.3333,
+      "threshold": 2.0,
+      "message": "Null rate 0.33% \u2713",
+      "rows_affected": 10,
+      "timestamp": "2026-04-17T21:54:57.392319+00:00"
+    },
+    {
+      "check_name": "duplicate_check",
+      "passed": true,
+      "severity": "CRITICAL",
+      "metric": 0.5,
+      "threshold": 0.5,
+      "message": "Duplicate rate 0.50% \u2713",
+      "rows_affected": 5,
+      "timestamp": "2026-04-17T21:54:57.392837+00:00"
+    },
+    {
+      "check_name": "range_check",
+      "passed": false,
+      "severity": "WARNING",
+      "metric": 2.0,
+      "threshold": 0,
+      "message": "Range [0,5000]: 20 violations \u26a0",
+      "rows_affected": 20,
+      "timestamp": "2026-04-17T21:54:57.393348+00:00"
+    },
+    {
+      "check_name": "freshness_check",
+      "passed": false,
+      "severity": "WARNING",
+      "metric": 2549.27,
+      "threshold": 48,
+      "message": "Data age 2549.3h \u26a0 exceeds 48h SLA",
+      "rows_affected": 0,
+      "timestamp": "2026-04-17T21:54:57.394746+00:00"
+    },
+    {
+      "check_name": "anomaly_check",
+      "passed": true,
+      "severity": "WARNING",
+      "metric": 1.5,
+      "threshold": 3.0,
+      "message": "Anomalies: 15 rows (1.50%) \u2713",
+      "rows_affected": 15,
+      "timestamp": "2026-04-17T21:54:57.395204+00:00"
+    }
+  ]
+}
