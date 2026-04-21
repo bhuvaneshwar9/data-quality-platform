@@ -236,27 +236,34 @@ def dashboard():
 
     check_rows = ""
     for r in data["checks"]:
-        col  = "#34d399" if r["status"] == "PASS" else ("#fbbf24" if r["status"] == "WARN" else "#ef4444")
-        icon = "✅" if r["status"] == "PASS" else ("⚠️" if r["status"] == "WARN" else "❌")
-        m    = f"{r['metric']:.2f}" if r["metric"] > 1 else f"{r['metric']:.2%}"
-        t    = f"{r['threshold']:.0f}" if r["threshold"] > 1 else f"{r['threshold']:.0%}"
-        check_rows += f"""
-        <tr>
-          <td><code>{r['check']}</code></td>
-          <td style="color:{col};font-weight:700">{icon} {r['status']}</td>
-          <td><span class="badge {'crit' if 'CRITICAL' in r['severity'] else 'warn'}">{r['severity']}</span></td>
-          <td>{m}</td><td>{t}</td>
-          <td>{r['rows_affected']:,}</td>
-          <td class="msg">{r['message']}</td>
+        if r["status"] == "PASS":
+            pill = '<span class="pill pass">PASS</span>'
+        elif r["status"] == "WARN":
+            pill = '<span class="pill warn">WARN</span>'
+        else:
+            pill = '<span class="pill fail">FAIL</span>'
+        m = f"{r['metric']:.2f}" if r["metric"] > 1 else f"{r['metric']:.2%}"
+        t = f"{r['threshold']:.0f}" if r["threshold"] > 1 else f"{r['threshold']:.0%}"
+        check_rows += f"""<tr>
+          <td><span class="check-name">{r['check']}</span></td>
+          <td>{pill}</td>
+          <td class="msg-col">{r['message']}</td>
+          <td class="num">{m}</td><td class="num">{t}</td>
+          <td class="num">{r['rows_affected']:,}</td>
         </tr>"""
 
     cat_rows = ""
+    total_rev = sum(c["revenue"] for c in data.get("categories", []))
     for c in sorted(data.get("categories", []), key=lambda x: -x["revenue"]):
+        pct = int(c["revenue"] / total_rev * 100) if total_rev else 0
         cat_rows += f"""<tr>
-          <td>{c['category']}</td>
-          <td>{c['transactions']:,}</td>
-          <td>${c['revenue']:,.2f}</td>
+          <td><span class="cat-dot"></span>{c['category']}</td>
+          <td class="num">{c['transactions']:,}</td>
+          <td class="num">${c['revenue']:,.2f}</td>
+          <td><div class="bar-wrap"><div class="bar-fill" style="width:{pct}%"></div></div></td>
         </tr>"""
+
+    score_pct = int(s['passed'] / s['total_checks'] * 100) if s['total_checks'] else 0
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -264,133 +271,184 @@ def dashboard():
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Data Quality Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *{{box-sizing:border-box;margin:0;padding:0}}
-    body{{background:#0d0a06;color:#e2e8f0;font-family:'Segoe UI',sans-serif;padding:2rem;line-height:1.5}}
-    h1{{color:#f97316;font-size:1.6rem;margin-bottom:.25rem}}
-    h2{{color:#f97316;font-size:1rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-        margin:1.8rem 0 .7rem}}
-    .sub{{color:#94a3b8;font-size:.88rem;margin-bottom:1rem}}
-    /* source badge */
-    .src{{display:flex;align-items:center;gap:.6rem;margin-bottom:1.2rem;
-          background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);
-          border-radius:8px;padding:.5rem 1rem;font-size:.82rem;flex-wrap:wrap}}
-    .dot{{width:9px;height:9px;background:#34d399;border-radius:50%;
-          animation:pulse 1.5s infinite;flex-shrink:0}}
-    @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.25}}}}
-    .src a{{color:#34d399;text-decoration:none;font-weight:600}}
-    .src a:hover{{text-decoration:underline}}
-    /* refresh bar */
-    .rbar{{background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.14);
-           border-radius:8px;padding:.55rem 1rem;font-size:.8rem;color:#94a3b8;
-           display:flex;justify-content:space-between;align-items:center;margin-bottom:1.4rem}}
-    #cd{{color:#f97316;font-weight:700}}
-    /* stat cards */
-    .stats{{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1.8rem}}
-    .stat{{background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.18);
-           border-radius:10px;padding:.9rem 1.3rem;min-width:120px}}
-    .stat-n{{font-size:1.9rem;font-weight:800;color:#f97316}}
-    .stat-l{{color:#94a3b8;font-size:.75rem;margin-top:.15rem}}
+    :root{{--bg:#f1f5f9;--surface:#ffffff;--surface2:#f8fafc;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--indigo:#6366f1;--indigo-light:#eef2ff;--green:#16a34a;--green-light:#dcfce7;--red:#dc2626;--red-light:#fee2e2;--yellow:#d97706;--yellow-light:#fef3c7}}
+    body{{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh}}
+    /* sidebar layout */
+    .layout{{display:grid;grid-template-columns:220px 1fr;min-height:100vh}}
+    .sidebar{{background:var(--surface);border-right:1px solid var(--border);padding:1.5rem 1.2rem;display:flex;flex-direction:column;gap:1.5rem}}
+    .brand{{display:flex;align-items:center;gap:.6rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}}
+    .brand-icon{{width:32px;height:32px;background:var(--indigo);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem}}
+    .brand-name{{font-weight:700;font-size:.95rem;color:var(--text)}}
+    .brand-sub{{font-size:.7rem;color:var(--muted)}}
+    .nav-label{{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:.4rem}}
+    .nav-item{{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;border-radius:6px;font-size:.82rem;color:var(--muted);margin-bottom:.15rem;text-decoration:none;cursor:default}}
+    .nav-item.active{{background:var(--indigo-light);color:var(--indigo);font-weight:600}}
+    .score-ring{{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:1rem;background:var(--surface2);border:1px solid var(--border);border-radius:12px}}
+    .ring-val{{font-size:2rem;font-weight:700;color:{hc}}}
+    .ring-label{{font-size:.7rem;color:var(--muted);text-align:center;line-height:1.4}}
+    .status-badge{{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .8rem;border-radius:20px;font-size:.72rem;font-weight:600}}
+    .status-ok{{background:var(--green-light);color:var(--green)}}
+    .status-warn{{background:var(--yellow-light);color:var(--yellow)}}
+    .status-fail{{background:var(--red-light);color:var(--red)}}
+    .sidebar-footer{{margin-top:auto;font-size:.7rem;color:var(--muted);line-height:1.6}}
+    /* main content */
+    .main{{padding:1.8rem 2rem;overflow-x:auto}}
+    .topbar{{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.8rem;flex-wrap:wrap;gap:1rem}}
+    .page-title{{font-size:1.25rem;font-weight:700;color:var(--text)}}
+    .page-sub{{font-size:.8rem;color:var(--muted);margin-top:.15rem}}
+    .top-actions{{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}}
+    .src-chip{{display:flex;align-items:center;gap:.4rem;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:.3rem .8rem;font-size:.75rem;color:var(--muted)}}
+    .live-dot{{width:7px;height:7px;background:#16a34a;border-radius:50%;animation:blink 1.4s infinite;flex-shrink:0}}
+    @keyframes blink{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
+    .src-chip a{{color:var(--indigo);text-decoration:none;font-weight:500}}
+    /* cards */
+    .cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:2rem}}
+    .card{{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem;transition:.15s}}
+    .card:hover{{box-shadow:0 4px 16px rgba(99,102,241,.08);border-color:#c7d2fe}}
+    .card-val{{font-size:1.8rem;font-weight:700;line-height:1}}
+    .card-label{{font-size:.72rem;color:var(--muted);margin-top:.4rem;font-weight:500}}
+    /* section */
+    .section-title{{font-size:.78rem;font-weight:600;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem}}
+    .section-title::after{{content:'';flex:1;height:1px;background:var(--border)}}
     /* tables */
-    table{{width:100%;border-collapse:collapse;background:rgba(20,12,4,.9);
-           border-radius:10px;overflow:hidden;margin-bottom:1.5rem}}
-    th{{background:rgba(249,115,22,.12);color:#f97316;padding:.65rem 1rem;
-        text-align:left;font-size:.76rem;letter-spacing:1px;text-transform:uppercase}}
-    td{{padding:.65rem 1rem;border-bottom:1px solid rgba(249,115,22,.07);font-size:.84rem}}
+    .tbl-wrap{{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:1.5rem}}
+    table{{width:100%;border-collapse:collapse}}
+    thead tr{{background:var(--surface2)}}
+    th{{padding:.65rem 1rem;text-align:left;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}}
+    td{{padding:.65rem 1rem;border-bottom:1px solid var(--border);font-size:.83rem}}
     tr:last-child td{{border-bottom:none}}
-    tr:hover td{{background:rgba(249,115,22,.04)}}
-    code{{background:rgba(249,115,22,.12);padding:.1rem .4rem;border-radius:4px;
-          color:#fbbf24;font-size:.79rem}}
-    .msg{{color:#94a3b8;font-size:.78rem}}
-    .badge{{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.69rem;font-weight:700}}
-    .badge.crit{{background:rgba(239,68,68,.15);color:#ef4444}}
-    .badge.warn{{background:rgba(251,191,36,.15);color:#fbbf24}}
+    tr:hover td{{background:var(--surface2)}}
+    .check-name{{font-family:monospace;background:#f1f5f9;padding:.1rem .45rem;border-radius:4px;font-size:.78rem;color:var(--indigo);font-weight:600}}
+    .pill{{display:inline-block;padding:.18rem .6rem;border-radius:20px;font-size:.68rem;font-weight:700;letter-spacing:.3px}}
+    .pill.pass{{background:var(--green-light);color:var(--green)}}
+    .pill.warn{{background:var(--yellow-light);color:var(--yellow)}}
+    .pill.fail{{background:var(--red-light);color:var(--red)}}
+    .msg-col{{color:var(--muted);font-size:.78rem;max-width:260px}}
+    .num{{font-variant-numeric:tabular-nums;font-size:.82rem}}
+    .cat-dot{{display:inline-block;width:8px;height:8px;background:var(--indigo);border-radius:50%;margin-right:.5rem;opacity:.6}}
+    .bar-wrap{{background:#e2e8f0;border-radius:4px;height:6px;width:100px;overflow:hidden}}
+    .bar-fill{{background:var(--indigo);height:100%;border-radius:4px;transition:.3s}}
+    .two{{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}}
+    @media(max-width:900px){{.layout{{grid-template-columns:1fr}}.sidebar{{display:none}}.two{{grid-template-columns:1fr}}}}
+    /* refresh bar */
+    .rbar{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem 1rem;font-size:.75rem;color:var(--muted);display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}}
+    #cd{{color:var(--indigo);font-weight:600}}
     /* buttons */
-    .btns{{margin-top:1.2rem;display:flex;gap:.6rem;flex-wrap:wrap}}
-    .btn{{display:inline-block;padding:.5rem 1.2rem;border-radius:8px;text-decoration:none;
-          font-weight:700;font-size:.85rem;transition:.2s}}
-    .btn.solid{{background:#f97316;color:#000}}.btn.solid:hover{{background:#ea580c}}
-    .btn.ghost{{background:rgba(249,115,22,.12);color:#f97316;border:1px solid rgba(249,115,22,.35)}}
-    .btn.ghost:hover{{background:rgba(249,115,22,.22)}}
-    .btn.green{{background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.3)}}
-    .btn.green:hover{{background:rgba(52,211,153,.22)}}
-    .two-col{{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}}
-    @media(max-width:700px){{.two-col{{grid-template-columns:1fr}}}}
+    .btns{{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1.5rem;padding-top:1.2rem;border-top:1px solid var(--border)}}
+    .btn{{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.1rem;border-radius:7px;font-size:.8rem;font-weight:600;text-decoration:none;transition:.15s;cursor:pointer;border:none}}
+    .btn-primary{{background:var(--indigo);color:#fff}}.btn-primary:hover{{background:#4f46e5;box-shadow:0 4px 12px rgba(99,102,241,.35)}}
+    .btn-outline{{background:var(--surface);color:var(--text);border:1px solid var(--border)}}.btn-outline:hover{{background:var(--surface2)}}
+    .btn-link{{background:transparent;color:var(--muted);border:1px solid var(--border)}}.btn-link:hover{{color:var(--indigo)}}
   </style>
 </head>
 <body>
-  <h1>🔍 Data Quality Platform</h1>
-  <p class="sub">Automated quality checks &nbsp;·&nbsp; {data['run_at'][:19]} UTC
-     &nbsp;·&nbsp; {data['dataset']['rows']:,} transactions &nbsp;·&nbsp;
-     {data['dataset']['columns'].__len__()} columns</p>
-
-  <div class="src">
-    <span class="dot"></span>
-    <span>Live data scraped from</span>
-    <a href="{BASE}" target="_blank">books.toscrape.com</a>
-    <span style="color:#64748b">·</span>
-    <span style="color:#94a3b8">{source}</span>
-  </div>
-
-  <div class="rbar">
-    <span>Auto-refreshing in <span id="cd">60</span>s</span>
-    <span style="color:{hc};font-weight:700">{hlabel}</span>
-  </div>
-
-  <div class="stats">
-    <div class="stat"><div class="stat-n">{s['total_checks']}</div><div class="stat-l">Checks Run</div></div>
-    <div class="stat"><div class="stat-n" style="color:#34d399">{s['passed']}</div><div class="stat-l">Passed</div></div>
-    <div class="stat"><div class="stat-n" style="color:{hc}">{s['failed']}</div><div class="stat-l">Failed</div></div>
-    <div class="stat"><div class="stat-n">{data['dataset']['rows']:,}</div><div class="stat-l">Rows Checked</div></div>
-    <div class="stat" style="border-color:rgba(52,211,153,.3)">
-      <div class="stat-n" style="color:{hc}">{hlabel}</div>
-      <div class="stat-l">Pipeline Health</div>
-    </div>
-  </div>
-
-  <h2>Quality Check Results</h2>
-  <table>
-    <thead><tr>
-      <th>Check</th><th>Status</th><th>Severity</th>
-      <th>Metric</th><th>Threshold</th><th>Rows Affected</th><th>Message</th>
-    </tr></thead>
-    <tbody>{check_rows}</tbody>
-  </table>
-
-  <div class="two-col">
-    <div>
-      <h2>By Category</h2>
-      <table>
-        <thead><tr><th>Category</th><th>Transactions</th><th>Revenue</th></tr></thead>
-        <tbody>{cat_rows}</tbody>
-      </table>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">🔍</div>
+      <div><div class="brand-name">DataQuality</div><div class="brand-sub">Platform v3.0</div></div>
     </div>
     <div>
-      <h2>Data Source</h2>
+      <div class="nav-label">Navigation</div>
+      <div class="nav-item active">📊 Dashboard</div>
+      <a class="nav-item" href="/docs">📖 API Docs</a>
+      <a class="nav-item" href="/health">❤️ Health</a>
+      <a class="nav-item" href="{BASE}" target="_blank">↗ Data Source</a>
+    </div>
+    <div class="score-ring">
+      <div class="ring-val">{score_pct}%</div>
+      <div class="status-badge {'status-ok' if s['failed']==0 else 'status-warn' if s['failed']<=1 else 'status-fail'}">{hlabel}</div>
+      <div class="ring-label">Quality Score<br/>{s['passed']}/{s['total_checks']} checks passed</div>
+    </div>
+    <div class="sidebar-footer">
+      Last run: {data['run_at'][11:19]} UTC<br/>
+      Rows: {data['dataset']['rows']:,} · Cols: {len(data['dataset']['columns'])}<br/>
+      Cache TTL: {CACHE_TTL//60} min
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="page-title">Quality Dashboard</div>
+        <div class="page-sub">{data['run_at'][:19]} UTC · {data['dataset']['rows']:,} transactions analysed</div>
+      </div>
+      <div class="top-actions">
+        <div class="src-chip">
+          <span class="live-dot"></span>
+          <span>Live ·</span>
+          <a href="{BASE}" target="_blank">books.toscrape.com</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="rbar">
+      <span>Auto-refreshing in <span id="cd">60</span>s</span>
+      <span style="color:{hc};font-weight:600">{source}</span>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="cards">
+      <div class="card"><div class="card-val">{s['total_checks']}</div><div class="card-label">Checks Run</div></div>
+      <div class="card"><div class="card-val" style="color:var(--green)">{s['passed']}</div><div class="card-label">Passed</div></div>
+      <div class="card"><div class="card-val" style="color:{hc}">{s['failed']}</div><div class="card-label">Failed</div></div>
+      <div class="card"><div class="card-val">{data['dataset']['rows']:,}</div><div class="card-label">Rows Analysed</div></div>
+      <div class="card"><div class="card-val" style="color:var(--indigo)">{score_pct}%</div><div class="card-label">Quality Score</div></div>
+    </div>
+
+    <!-- Check results -->
+    <div class="section-title">Quality Check Results</div>
+    <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Property</th><th>Value</th></tr></thead>
-        <tbody>
-          <tr><td>Website</td><td><a href="{BASE}" target="_blank" style="color:#34d399">books.toscrape.com</a></td></tr>
-          <tr><td>Products scraped</td><td>{len(data.get('categories', []))} categories</td></tr>
-          <tr><td>Transactions generated</td><td>{data['dataset']['rows']:,}</td></tr>
-          <tr><td>Cache TTL</td><td>{CACHE_TTL // 60} minutes</td></tr>
-          <tr><td>Injected duplicates</td><td>8 (double-submit simulation)</td></tr>
-          <tr><td>Injected bulk orders</td><td>6 (bot/fraud simulation)</td></tr>
-        </tbody>
+        <thead><tr><th>Check</th><th>Status</th><th>Message</th><th>Metric</th><th>Threshold</th><th>Rows</th></tr></thead>
+        <tbody>{check_rows}</tbody>
       </table>
     </div>
-  </div>
 
-  <div class="btns">
-    <a class="btn solid" href="/" onclick="location.reload();return false;">↻ Re-run Now</a>
-    <a class="btn ghost" href="/docs">📖 API Docs</a>
-    <a class="btn green" href="{BASE}" target="_blank">🌐 Live Data Source</a>
-  </div>
+    <div class="two">
+      <div>
+        <div class="section-title">Revenue by Category</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Category</th><th>Orders</th><th>Revenue</th><th>Share</th></tr></thead>
+            <tbody>{cat_rows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="section-title">Injected Anomalies</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Count</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td>Duplicate IDs</td><td class="num" style="color:var(--red)">8</td><td class="msg-col">Double-submit simulation</td></tr>
+              <tr><td>Bulk orders</td><td class="num" style="color:var(--yellow)">6</td><td class="msg-col">Bot / fraud simulation</td></tr>
+              <tr><td>OOS purchases</td><td class="num" style="color:var(--yellow)">~5%</td><td class="msg-col">Business-rule violation</td></tr>
+              <tr><td>Source website</td><td colspan="2"><a href="{BASE}" target="_blank" style="color:var(--indigo);font-weight:500">books.toscrape.com ↗</a></td></tr>
+              <tr><td>Products scraped</td><td class="num">{len(data.get('categories',[]))}</td><td class="msg-col">categories</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  <script>
-    let t = 60;
-    const el = document.getElementById("cd");
-    setInterval(() => {{ t--; el.textContent = t; if (t <= 0) location.reload(); }}, 1000);
-  </script>
+    <div class="btns">
+      <button class="btn btn-primary" onclick="location.reload()">↻ Re-run Checks</button>
+      <a class="btn btn-outline" href="/docs">📖 API Docs</a>
+      <a class="btn btn-link" href="{BASE}" target="_blank">↗ Data Source</a>
+    </div>
+  </main>
+</div>
+
+<script>
+  let t=60;const el=document.getElementById("cd");
+  setInterval(()=>{{t--;el.textContent=t;if(t<=0)location.reload();}},1000);
+</script>
 </body>
 </html>"""
