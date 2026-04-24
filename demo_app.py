@@ -307,6 +307,27 @@ def _build_dashboard():
         "FreshnessCheck": {"icon":"🕐","label":"Data Freshness", "fix":"Ensure the pipeline ingests data within 48h; check ETL schedule."},
         "AnomalyCheck":   {"icon":"🚨","label":"Anomaly Detection","fix":"Investigate bulk/bot orders — apply rate-limiting or fraud rules."},
     }
+
+    # Precompute sidebar check-status list (avoids {{}} bug inside f-string expressions)
+    sidebar_checks = ""
+    for r in data["checks"]:
+        meta_s    = CHECK_META.get(r["check"], {"icon":"🔍","label":r["check"]})
+        pill_s    = "pass" if r["status"]=="PASS" else ("warn" if r["status"]=="WARN" else "fail")
+        sidebar_checks += (
+            f'<div class="mini-check">'
+            f'<span style="font-size:.8rem">{meta_s["icon"]} {meta_s["label"]}</span>'
+            f'<span class="pill {pill_s}">{r["status"]}</span>'
+            f'</div>'
+        )
+
+    # Precompute status pill
+    if s["failed"] == 0:
+        status_pill = '<div class="status-pill sp-ok">✓ HEALTHY</div>'
+    elif s["failed"] <= 1:
+        status_pill = '<div class="status-pill sp-warn">⚠ DEGRADED</div>'
+    else:
+        status_pill = '<div class="status-pill sp-fail">✕ FAILING</div>'
+
     check_cards = ""
     for r in data["checks"]:
         meta  = CHECK_META.get(r["check"], {"icon":"🔍","label":r["check"],"fix":"Review and address the flagged records."})
@@ -385,11 +406,26 @@ def _build_dashboard():
     fail_checks = [r for r in data["checks"] if r["status"] in ("FAIL","WARN")]
     issues_banner = ""
     if fail_checks:
-        issue_items = "".join(f'<div class="issue-item"><span class="pill {"warn" if r["status"]=="WARN" else "fail"}">{r["status"]}</span><span>{CHECK_META.get(r["check"],{{}}).get("label",r["check"])}</span><span class="issue-rows">{r["rows_affected"]:,} rows</span></div>' for r in fail_checks)
-        issues_banner = f"""<div class="issues-banner">
-          <div class="issues-header">⚠ {len(fail_checks)} issue{"s" if len(fail_checks)>1 else ""} require{"s" if len(fail_checks)==1 else ""} attention · {total_issues:,} total affected rows</div>
-          <div class="issue-list">{issue_items}</div>
-        </div>"""
+        issue_items = ""
+        for r in fail_checks:
+            pill_cls = "warn" if r["status"] == "WARN" else "fail"
+            label    = CHECK_META.get(r["check"], {}).get("label", r["check"])
+            issue_items += (
+                f'<div class="issue-item">'
+                f'<span class="pill {pill_cls}">{r["status"]}</span>'
+                f'<span>{label}</span>'
+                f'<span class="issue-rows">{r["rows_affected"]:,} rows</span>'
+                f'</div>'
+            )
+        n_issues  = len(fail_checks)
+        s_suffix  = "s" if n_issues > 1 else ""
+        req_verb  = "require" if n_issues > 1 else "requires"
+        issues_banner = (
+            f'<div class="issues-banner">'
+            f'<div class="issues-header">⚠ {n_issues} issue{s_suffix} {req_verb} attention · {total_issues:,} total affected rows</div>'
+            f'<div class="issue-list">{issue_items}</div>'
+            f'</div>'
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -524,11 +560,11 @@ def _build_dashboard():
     <div class="score-box">
       <div class="score-num">{score_pct}%</div>
       <div class="score-label">{s['passed']}/{s['total_checks']} checks passed</div>
-      <div class="status-pill {'sp-ok' if s['failed']==0 else 'sp-warn' if s['failed']<=1 else 'sp-fail'}">{'✓ HEALTHY' if s['failed']==0 else '⚠ DEGRADED' if s['failed']<=1 else '✕ FAILING'}</div>
+      {status_pill}
     </div>
     <div>
       <div class="nav-label">Check Status</div>
-      {"".join(f'<div class="mini-check"><span style="font-size:.8rem">{CHECK_META.get(r["check"],{{}}).get("icon","🔍")} {CHECK_META.get(r["check"],{{}}).get("label",r["check"])}</span><span class="pill {"pass" if r["status"]=="PASS" else "warn" if r["status"]=="WARN" else "fail"}">{r["status"]}</span></div>' for r in data["checks"])}
+      {sidebar_checks}
     </div>
     <div class="sidebar-footer">
       Last run: {data['run_at'][11:19]} UTC<br/>
