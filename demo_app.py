@@ -281,6 +281,14 @@ def get_results():
 # ── HTML Dashboard ─────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def dashboard():
+    import traceback
+    try:
+        return _build_dashboard()
+    except Exception:
+        tb = traceback.format_exc()
+        return HTMLResponse(f"<pre style='padding:2rem;background:#1e1e2e;color:#f38ba8;font-size:.85rem'>{tb}</pre>", status_code=200)
+
+def _build_dashboard():
     data    = run_checks()
     s       = data["summary"]
     source  = data.get("source", "")
