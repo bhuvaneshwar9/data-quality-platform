@@ -209,32 +209,47 @@ def run_checks():
     ).round(2).reset_index()
 
     # Per-category quality: flag duplicates/anomalies per category
-    dup_ids  = df[df["transaction_id"].duplicated(keep=False)]["transaction_id"].unique()
-    mean_amt = df["amount"].mean(); std_amt = df["amount"].std() + 1e-9
+    dup_ids      = df[df["transaction_id"].duplicated(keep=False)]["transaction_id"].unique()
+    mean_amt     = df["amount"].mean()
+    std_amt      = df["amount"].std() + 1e-9
     df["_anomaly"] = ((df["amount"] - mean_amt) / std_amt).abs() > 3.0
     df["_dup"]     = df["transaction_id"].isin(dup_ids)
     df["_oos"]     = df["availability"] == "Out of Stock"
+    df["_issue"]   = df["_anomaly"] | df["_dup"] | df["_oos"]
 
     cat_issues = df.groupby("category").agg(
-        issues=("_anomaly", lambda x: int(x.sum()) + int(df.loc[x.index,"_dup"].sum()) + int(df.loc[x.index,"_oos"].sum())),
+        issues=("_issue", "sum"),
         total=("transaction_id", "count"),
     ).reset_index()
+    cat_issues["issues"]     = cat_issues["issues"].astype(int)
     cat_issues["issue_rate"] = (cat_issues["issues"] / cat_issues["total"] * 100).round(1)
 
-    cat_full = cat_counts.merge(cat_issues[["category","issues","issue_rate"]], on="category", how="left")
+    cat_full = cat_counts.merge(
+        cat_issues[["category", "issues", "issue_rate"]], on="category", how="left"
+    ).fillna(0)
+    cat_full["transactions"] = cat_full["transactions"].astype(int)
+    cat_full["issues"]       = cat_full["issues"].astype(int)
 
-    # Column null profile
-    null_profile = {col: int(df[col].isna().sum()) for col in df.columns}
-
-    # Sample bad records (duplicates + anomalies)
-    bad_records = df[df["_anomaly"] | df["_dup"] | df["_oos"]].head(5)[
+    # Sample bad records (duplicates + anomalies + OOS)
+    bad_records = []
+    for rec in df[df["_issue"]].head(5)[
         ["transaction_id","user_id","product","category","amount","availability"]
-    ].to_dict(orient="records")
+    ].to_dict(orient="records"):
+        bad_records.append({
+            "transaction_id": str(rec["transaction_id"]),
+            "user_id":        str(rec.get("user_id", "—")),
+            "product":        str(rec["product"]),
+            "category":       str(rec["category"]),
+            "amount":         float(rec["amount"]),
+            "availability":   str(rec["availability"]),
+        })
 
     # Hourly distribution
     df["_hour"] = pd.to_datetime(df["created_at"]).dt.hour
-    hourly = df.groupby("_hour").size().reset_index(name="count")
+    hourly      = df.groupby("_hour").size().reset_index(name="count")
     hourly_data = {int(r["_hour"]): int(r["count"]) for _, r in hourly.iterrows()}
+
+    total_issues = int(df["_issue"].sum())
 
     result = {
         "run_at":       datetime.now(timezone.utc).isoformat(),
@@ -242,9 +257,13 @@ def run_checks():
         "dataset":      {"rows": len(df), "columns": list(df.columns)},
         "summary":      {"total_checks": len(checks), "passed": passed,
                          "failed": len(checks) - passed,
-                         "total_issues": int(df["_anomaly"].sum() + df["_dup"].sum() + df["_oos"].sum())},
-        "categories":   cat_full.to_dict(orient="records"),
-        "null_profile": null_profile,
+                         "total_issues": total_issues},
+        "categories":   [
+            {k: (int(v) if hasattr(v, "item") and isinstance(v.item(), int) else
+                 float(round(v.item(), 2)) if hasattr(v, "item") else v)
+             for k, v in row.items()}
+            for row in cat_full.to_dict(orient="records")
+        ],
         "bad_records":  bad_records,
         "hourly":       hourly_data,
         "checks":       checks,
